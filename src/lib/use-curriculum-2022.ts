@@ -1,0 +1,3 @@
+"use client";
+import {useEffect,useState} from "react";import type {Course} from "./types";import {CURRICULUM_2022_STORAGE,curriculum2022Defaults} from "@/data/curriculum-2022";
+export function useCurriculum2022(){const [courses,setCoursesState]=useState<Course[]>(curriculum2022Defaults);useEffect(()=>{try{const saved=localStorage.getItem(CURRICULUM_2022_STORAGE);if(saved)setCoursesState(JSON.parse(saved) as Course[])}catch{}},[]);const save=(next:Course[])=>{setCoursesState(next);localStorage.setItem(CURRICULUM_2022_STORAGE,JSON.stringify(next))};const reset=()=>{setCoursesState(curriculum2022Defaults);localStorage.removeItem(CURRICULUM_2022_STORAGE)};return {courses,save,reset}}
