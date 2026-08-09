@@ -52,6 +52,18 @@ Autentikasi MVP disimulasikan melalui profil statis:
 
 Belum ada password atau SSO. Autentikasi nyata merupakan tahap selanjutnya.
 
+## Deployment ke Vercel
+
+Repository sudah menyediakan `vercel.json`, script `vercel-build`, generate Prisma saat instalasi/build, Node.js 20–22, dan binary SWC lintas platform yang terkunci di `package-lock.json`.
+
+1. Import repository ke Vercel sebagai proyek Next.js.
+2. Gunakan Build Command bawaan dari `vercel.json`: `npm run vercel-build`.
+3. Jika persistence PostgreSQL diaktifkan, tambahkan `DATABASE_URL` pada Environment Variables untuk Production, Preview, dan Development.
+4. Jalankan migration production dari pipeline atau terminal tepercaya: `npx prisma migrate deploy`.
+5. Redeploy setelah environment variable tersedia.
+
+Endpoint parser transkrip memakai Node.js runtime, memori 1 GB, durasi maksimal 30 detik, dan batas PDF 4 MB agar sesuai dengan batas request fungsi serverless Vercel.
+
 ## Struktur folder
 
 ```text
