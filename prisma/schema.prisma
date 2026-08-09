@@ -1,0 +1,301 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+enum Track {
+  AI
+  FSD
+  GENERAL
+  BOTH
+}
+enum CourseCategory {
+  CORE
+  AI_TRACK
+  FSD_TRACK
+  UNIVERSITY
+  ENTREPRENEURSHIP
+  INTERDISCIPLINARY
+  CREDENTIAL
+  ENRICHMENT
+  ELECTIVE
+  FINAL_PROJECT
+}
+enum RelationshipType {
+  PREREQUISITE
+  COREQUISITE
+  RECOMMENDED_BEFORE
+}
+enum HistoryStatus {
+  PASSED
+  FAILED
+  IN_PROGRESS
+}
+enum PlanStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+enum TranscriptImportStatus {
+  PENDING_REVIEW
+  CONFIRMED
+  FAILED
+}
+enum TranscriptMatchStatus {
+  MATCHED
+  NEEDS_REVIEW
+  IGNORED
+}
+enum RequirementGroupType {
+  INTERDISCIPLINARY
+  ELECTIVE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      Role     @default(STUDENT)
+  student   Student?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Student {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nim            String   @unique
+  curriculumId   String
+  curriculum     Curriculum @relation(fields: [curriculumId], references: [id])
+  activeSemester Int
+  track          Track    @default(GENERAL)
+  currentIps     Decimal? @db.Decimal(3, 2)
+  histories      StudentCourseHistory[]
+  plans          StudyPlan[]
+  transcriptImports TranscriptImport[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@index([curriculumId])
+}
+
+model Curriculum {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  startYear Int
+  isActive  Boolean  @default(true)
+  courses   CurriculumCourse[]
+  students  Student[]
+  requirementGroups CourseRequirementGroup[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Course {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  name            String
+  credits         Int
+  category        CourseCategory
+  track           Track    @default(GENERAL)
+  description     String?
+  isActive        Boolean  @default(true)
+  repeatable      Boolean  @default(false)
+  curricula       CurriculumCourse[]
+  prerequisites   CoursePrerequisite[] @relation("CoursePrerequisites")
+  prerequisiteFor CoursePrerequisite[] @relation("PrerequisiteCourse")
+  offerings       CourseOffering[]
+  histories       StudentCourseHistory[]
+  planItems       StudyPlanItem[]
+  transcriptItems TranscriptImportItem[]
+  requirementMemberships CourseRequirementMembership[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@index([category, track])
+}
+
+model CurriculumCourse {
+  curriculumId       String
+  courseId           String
+  recommendedSemester Int
+  isRequired         Boolean @default(true)
+  positionX          Float   @default(0)
+  positionY          Float   @default(0)
+  curriculum         Curriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  course             Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  @@id([curriculumId, courseId])
+  @@index([curriculumId, recommendedSemester])
+}
+
+model CoursePrerequisite {
+  id                   String @id @default(cuid())
+  courseId             String
+  prerequisiteCourseId String
+  relationshipType     RelationshipType
+  minimumGrade         String?
+  course               Course @relation("CoursePrerequisites", fields: [courseId], references: [id], onDelete: Cascade)
+  prerequisiteCourse   Course @relation("PrerequisiteCourse", fields: [prerequisiteCourseId], references: [id], onDelete: Cascade)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  @@unique([courseId, prerequisiteCourseId, relationshipType])
+  @@index([courseId])
+  @@index([prerequisiteCourseId])
+}
+
+model AcademicPeriod {
+  id        String @id @default(cuid())
+  code      String @unique
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean @default(false)
+  offerings CourseOffering[]
+  histories StudentCourseHistory[]
+  plans     StudyPlan[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CourseOffering {
+  id               String @id @default(cuid())
+  courseId         String
+  academicPeriodId String
+  capacity         Int?
+  isOpen           Boolean @default(true)
+  course           Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  academicPeriod   AcademicPeriod @relation(fields: [academicPeriodId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@unique([courseId, academicPeriodId])
+}
+
+model StudentCourseHistory {
+  id               String @id @default(cuid())
+  studentId        String
+  courseId         String
+  academicPeriodId String
+  grade            String?
+  status           HistoryStatus
+  student          Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course           Course @relation(fields: [courseId], references: [id])
+  academicPeriod   AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@unique([studentId, courseId, academicPeriodId])
+  @@index([studentId, status])
+}
+
+model StudyPlan {
+  id               String @id @default(cuid())
+  studentId        String
+  academicPeriodId String
+  status           PlanStatus @default(DRAFT)
+  totalCredits     Int @default(0)
+  student          Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicPeriod   AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
+  items            StudyPlanItem[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@unique([studentId, academicPeriodId])
+}
+
+model StudyPlanItem {
+  id          String @id @default(cuid())
+  studyPlanId String
+  courseId    String
+  studyPlan   StudyPlan @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+  course      Course @relation(fields: [courseId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@unique([studyPlanId, courseId])
+}
+
+model CreditLimitRule {
+  id         String @id @default(cuid())
+  minIps     Decimal @db.Decimal(3, 2)
+  maxIps     Decimal? @db.Decimal(3, 2)
+  maxCredits Int
+  isActive   Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  @@index([isActive, minIps])
+}
+
+model TranscriptImport {
+  id               String @id @default(cuid())
+  studentId        String
+  fileName         String
+  fileHash         String
+  status           TranscriptImportStatus @default(PENDING_REVIEW)
+  extractedNim     String?
+  extractedGpa     Decimal? @db.Decimal(3, 2)
+  extractedCredits Int?
+  student          Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  items            TranscriptImportItem[]
+  confirmedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@unique([studentId, fileHash])
+  @@index([studentId, status])
+}
+
+model TranscriptImportItem {
+  id                 String @id @default(cuid())
+  transcriptImportId String
+  courseId           String?
+  externalCode       String
+  subjectName        String
+  academicPeriodCode String
+  credits            Int
+  grade              String
+  qualityPoints      Decimal? @db.Decimal(5, 2)
+  matchStatus        TranscriptMatchStatus
+  transcriptImport   TranscriptImport @relation(fields: [transcriptImportId], references: [id], onDelete: Cascade)
+  course             Course? @relation(fields: [courseId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  @@unique([transcriptImportId, externalCode, academicPeriodCode])
+  @@index([courseId])
+}
+
+model CourseRequirementGroup {
+  id              String @id @default(cuid())
+  curriculumId    String
+  code            String
+  name            String
+  type            RequirementGroupType
+  requiredCredits Int
+  isActive        Boolean @default(true)
+  curriculum      Curriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  memberships     CourseRequirementMembership[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@unique([curriculumId, code])
+  @@index([curriculumId, type])
+}
+
+model CourseRequirementMembership {
+  id          String @id @default(cuid())
+  groupId     String
+  courseId    String
+  notes       String?
+  isActive    Boolean @default(true)
+  group       CourseRequirementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  course      Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@unique([groupId, courseId])
+  @@index([courseId, isActive])
+}
